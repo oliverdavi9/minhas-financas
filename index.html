@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Minhas Finanças</title>
+<meta name="description" content="Receitas, despesas, orçamento, parcelas e faturas de cartão.">
+<meta name="theme-color" content="#E7DFD4" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#120A0B" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Finanças">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="styles.css">
+<script>if (navigator.standalone || matchMedia("(display-mode: standalone)").matches) document.documentElement.classList.add("standalone");</script>
+</head>
+<body>
+<div class="ambient" aria-hidden="true">
+  <div class="blob b1" id="blob1"></div><div class="blob b2" id="blob2"></div><div class="blob b3"></div><div class="blob b4"></div>
+  <div class="beams"></div><div class="grain"></div>
+</div>
+
+<div class="shell" id="shell">
+  <header class="topbar glass">
+    <div class="brand"><div class="logo">M</div><b>Minhas Finanças</b></div>
+    <nav class="nav" id="nav" aria-label="Telas" data-slider='[aria-current="page"]'>
+      <button type="button" data-go="visao" aria-current="page">Visão geral</button>
+      <button type="button" data-go="orcamento">Orçamento</button>
+      <button type="button" data-go="parcelas">Parcelas</button>
+      <button type="button" data-go="cartoes">Cartões</button>
+      <button type="button" data-go="extrato">Extrato</button>
+    </nav>
+    <div class="tools">
+      <div class="month" aria-label="Mês exibido">
+        <button id="prev" type="button" aria-label="Mês anterior"><svg class="ico" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg></button>
+        <strong id="monthLabel">—</strong>
+        <button id="next" type="button" aria-label="Próximo mês"><svg class="ico" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></svg></button>
+      </div>
+      <button class="round" id="accountBtn" type="button" aria-label="Conta e backup"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></button>
+      <button class="round" id="themeBtn" type="button" aria-label="Alternar tema claro e escuro"></button>
+      <button class="btn btn-ink" type="button" data-open="despesa"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span class="lancar-label">Lançar</span></button>
+    </div>
+  </header>
+
+  <div class="notice glass" id="statusNotice" hidden><span id="statusText"></span></div>
+  <div class="notice glass" id="exampleNotice" hidden>
+    <span><i class="dot"></i>Os lançamentos marcados como <b>exemplo</b> são fictícios, só para mostrar o painel em uso.</span>
+    <button class="btn btn-glass" id="clearExamples" type="button">Apagar exemplos</button>
+  </div>
+
+  <!-- ===== tela: visão geral ===== -->
+  <section class="view" id="view-visao" aria-label="Visão geral">
+    <div class="hello stag">
+      <div>
+        <h1><span id="greet">Olá</span>, <em>vamos às contas</em></h1>
+        <p>Acompanhe o que entrou, o que saiu e quanto ainda cabe no orçamento.</p>
+      </div>
+      <div class="chips">
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div><div><b class="num skel" id="cCount">—</b><span>lançamentos no mês</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div><div><b class="num skel" id="cDaily">—</b><span>gasto médio por dia</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M3 17 9 11l4 4 8-8M15 7h6v6"/></svg></div><div><b class="num skel" id="cTop">—</b><span id="cTopLabel">maior despesa</span></div></div>
+      </div>
+    </div>
+
+    <div class="dash dash-visao">
+      <section class="card glass a-bal stag" id="saldo">
+        <div class="card-head"><span class="label">Saldo acumulado</span><span class="delta flat" id="balDelta">—</span></div>
+        <div class="big num skel" id="balTotal">—</div>
+        <div class="actions">
+          <button class="btn btn-ink" type="button" data-open="receita"><svg class="ico" viewBox="0 0 24 24"><path d="M17 7 7 17M16 17H7V8"/></svg>Nova receita</button>
+          <button class="btn btn-glass" type="button" data-open="despesa"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>Nova despesa</button>
+        </div>
+        <div class="card-head"><span class="label">Onde mais gastou</span><span class="label" id="walletsTotal"></span></div>
+        <div class="wallets" id="wallets"></div>
+      </section>
+
+      <section class="a-tiles tiles stag" aria-label="Resumo do mês">
+        <div class="tile glass card hero">
+          <div class="top"><span class="label">Receitas</span><span class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M17 7 7 17M16 17H7V8"/></svg></span></div>
+          <div class="val num skel" id="tIn">—</div><div class="foot" id="tInFoot">&nbsp;</div>
+        </div>
+        <div class="tile glass card">
+          <div class="top"><span class="label">Despesas</span><span class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg></span></div>
+          <div class="val num skel" id="tOut">—</div><div class="foot" id="tOutFoot">&nbsp;</div>
+        </div>
+        <div class="tile glass card">
+          <div class="top"><span class="label">Saldo do mês</span><span class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12.5h2M3 10h18"/></svg></span></div>
+          <div class="val num skel" id="tBal">—</div><div class="foot" id="tBalFoot">&nbsp;</div>
+        </div>
+        <div class="tile glass card">
+          <div class="top"><span class="label">Poupança</span><span class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></span></div>
+          <div class="val num skel" id="tRate">—</div><div class="foot" id="tRateFoot">&nbsp;</div>
+        </div>
+      </section>
+
+      <section class="card glass a-chart stag" id="tendencia">
+        <div class="card-head">
+          <h2>Receitas e despesas</h2>
+          <div class="seg" role="group" aria-label="Período do gráfico" data-slider='[aria-pressed="true"]'>
+            <button type="button" data-range="6" aria-pressed="true">6M</button>
+            <button type="button" data-range="12" aria-pressed="false">12M</button>
+          </div>
+        </div>
+        <div class="legend"><span style="--c: var(--accent)">Receitas</span><span style="--c: var(--ink)">Despesas</span></div>
+        <div class="chart" id="chart"><div class="tip" id="tip" hidden></div></div>
+        <div class="chart-foot">
+          <div><span class="label">Média de receitas</span><b class="num skel" id="avgIn">—</b></div>
+          <div><span class="label">Média de despesas</span><b class="num skel" id="avgOut">—</b></div>
+          <div><span class="label">Melhor saldo</span><b class="num skel" id="bestMonth">—</b></div>
+        </div>
+      </section>
+
+      <section class="card glass a-recent stag" id="recentes">
+        <div class="card-head">
+          <h2>Últimos lançamentos</h2>
+          <button class="btn btn-glass" type="button" data-go="extrato">Ver extrato completo<svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+        </div>
+        <div class="acts" id="recent"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ===== tela: orçamento ===== -->
+  <section class="view" id="view-orcamento" aria-label="Orçamento" hidden>
+    <div class="hello stag">
+      <div>
+        <h1><em>Orçamento</em> do mês</h1>
+        <p id="orcSub">Quanto ainda cabe em cada categoria.</p>
+      </div>
+      <div class="chips">
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg></div><div><b class="num skel" id="oPlan">—</b><span>planejado</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg></div><div><b class="num skel" id="oSpent">—</b><span>gasto até agora</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12.5h2M3 10h18"/></svg></div><div><b class="num skel" id="oLeft">—</b><span>ainda disponível</span></div></div>
+      </div>
+    </div>
+
+    <div class="dash dash-orc">
+      <section class="card glass a-gauge stag" id="medidor">
+        <div class="card-head"><h2>Uso do orçamento</h2><span class="delta flat" id="gaugePct">—</span></div>
+        <div class="gauge">
+          <svg viewBox="0 0 240 136" id="gaugeSvg" role="img" aria-label="Uso do orçamento do mês">
+            <defs><linearGradient id="gGrad" x1="0" x2="1"><stop offset="0" stop-color="var(--accent-2)"/><stop offset="1" stop-color="var(--accent)"/></linearGradient></defs>
+          </svg>
+          <div class="gauge-center"><b class="num skel" id="gaugeVal">—</b><span id="gaugeSub">gasto no mês</span></div>
+        </div>
+        <div class="trio">
+          <div><b class="num" id="bOk">0</b><span>no controle</span></div>
+          <div><b class="num" id="bWarn">0</b><span>perto do limite</span></div>
+          <div><b class="num" id="bOver">0</b><span>estouradas</span></div>
+        </div>
+      </section>
+
+      <section class="card glass a-budget stag" id="categorias">
+        <div class="card-head"><h2>Por categoria</h2><span class="label">gasto / limite · toque no limite para editar</span></div>
+        <div class="budget" id="budget"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ===== tela: parcelas ===== -->
+  <section class="view" id="view-parcelas" aria-label="Parcelas" hidden>
+    <div class="hello stag">
+      <div>
+        <h1><em>Parcelas</em> e contas fixas</h1>
+        <p>Compras parceladas, financiamentos, consórcios e contas fixas. Cada parcela entra no extrato do mês dela sozinha.</p>
+      </div>
+      <div class="chips">
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div><div><b class="num skel" id="pMonth">—</b><span id="pMonthLabel">comprometido no mês</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg></div><div><b class="num skel" id="pLeft">—</b><span>parcelas ainda a pagar</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg></div><div><b class="num skel" id="pCount">—</b><span>planos ativos</span></div></div>
+      </div>
+    </div>
+
+    <div class="dash dash-parc">
+      <section class="card glass a-plans stag" id="planos">
+        <div class="card-head">
+          <h2>Seus parcelamentos</h2>
+          <div class="filters">
+            <button class="btn btn-glass" type="button" data-open="fixa"><svg class="ico" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/></svg>Conta fixa</button>
+            <button class="btn btn-ink" type="button" data-open="parcelada"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nova parcelada</button>
+          </div>
+        </div>
+        <div class="plans" id="plans"></div>
+      </section>
+
+      <section class="card glass a-proj stag" id="projecao">
+        <div class="card-head"><h2>Próximos 6 meses</h2><span class="label">já comprometido</span></div>
+        <div class="proj" id="proj"></div>
+        <p class="hint">Soma das parcelas e contas fixas que já estão lançadas para cada mês.</p>
+      </section>
+    </div>
+  </section>
+
+  <!-- ===== tela: cartões ===== -->
+  <section class="view" id="view-cartoes" aria-label="Cartões" hidden>
+    <div class="hello stag">
+      <div>
+        <h1><em>Cartões</em> e contas a pagar</h1>
+        <p id="cardSub">Quanto vai cair em cada cartão no mês e quanto dá tudo somado.</p>
+      </div>
+      <div class="chips">
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg></div><div><b class="num skel" id="kFat">—</b><span id="kFatLabel">faturas do mês</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M16 12.5h2M3 10h18"/></svg></div><div><b class="num skel" id="kOther">—</b><span id="kOtherLabel">outras contas do mês</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div><div><b class="num skel" id="kTotal">—</b><span id="kTotalLabel">total a pagar</span></div></div>
+      </div>
+    </div>
+
+    <div class="dash dash-cards">
+      <section class="card glass a-wallet stag" id="carteira">
+        <div class="card-head">
+          <h2>Seus cartões</h2>
+          <button class="btn btn-ink" type="button" data-card-new><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Novo cartão</button>
+        </div>
+        <div class="ccards" id="ccards"></div>
+      </section>
+
+      <section class="card glass a-pay stag" id="apagar">
+        <div class="card-head"><h2>Contas a pagar</h2><span class="label" id="payMonth"></span></div>
+        <div class="paylist" id="paylist"></div>
+        <p class="hint">As faturas contam no mês do vencimento. Compras sem cartão contam no mês em que foram feitas.</p>
+      </section>
+
+      <section class="card glass a-fat stag" id="fatura">
+        <div class="card-head"><h2 id="fatTitle">Compras da fatura</h2><span class="label" id="fatMeta"></span></div>
+        <div class="acts" id="fatItems"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ===== tela: extrato ===== -->
+  <section class="view" id="view-extrato" aria-label="Extrato" hidden>
+    <div class="hello stag">
+      <div>
+        <h1><em>Extrato</em></h1>
+        <p id="extSub">Todos os lançamentos do mês.</p>
+      </div>
+      <div class="chips">
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M17 7 7 17M16 17H7V8"/></svg></div><div><b class="num skel" id="eIn">—</b><span>entradas</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg></div><div><b class="num skel" id="eOut">—</b><span>saídas</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg></div><div><b class="num skel" id="eRes">—</b><span>resultado</span></div></div>
+      </div>
+    </div>
+
+    <section class="card glass stag" id="extrato">
+      <div class="card-head">
+        <h2>Lançamentos</h2>
+        <div class="filters">
+          <label class="search"><svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><span class="sr">Buscar lançamento</span><input id="q" type="search" placeholder="Buscar…" autocomplete="off"></label>
+          <div class="seg" role="group" aria-label="Filtrar por tipo" data-slider='[aria-pressed="true"]'>
+            <button type="button" data-kind="todos" aria-pressed="true">Todos</button>
+            <button type="button" data-kind="receita" aria-pressed="false">Receitas</button>
+            <button type="button" data-kind="despesa" aria-pressed="false">Despesas</button>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="act-head"><span></span><span>Descrição</span><span>Data</span><span>Tipo</span><span class="rt">Valor</span><span></span></div>
+        <div class="acts" id="acts"></div>
+        <div class="act-foot"><span id="actCount"></span><span id="actSum"></span></div>
+      </div>
+    </section>
+  </section>
+</div>
+
+<nav class="dock glass" id="dock" aria-label="Telas" data-slider='[aria-current="page"]'>
+  <button type="button" data-go="visao" aria-current="page"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Início</button>
+  <button type="button" data-go="orcamento"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>Orçamento</button>
+  <button type="button" data-go="parcelas"><svg class="ico" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>Parcelas</button>
+  <button type="button" data-go="cartoes"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg>Cartões</button>
+  <button type="button" data-go="extrato"><svg class="ico" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Extrato</button>
+  <button type="button" class="plus" data-open="despesa" aria-label="Novo lançamento"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
+</nav>
+
+<div class="overlay" id="overlay" aria-hidden="true">
+  <div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-head"><h2 id="modalTitle">Novo lançamento</h2><button class="round" type="button" id="closeModal" aria-label="Fechar"><svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <form id="txForm" novalidate>
+      <div style="display:grid;gap:14px">
+        <div class="type-seg" role="radiogroup" aria-label="Tipo">
+          <span class="knob"></span>
+          <label><input type="radio" name="tipo" id="tDespesa" value="despesa" checked>Despesa</label>
+          <label><input type="radio" name="tipo" id="tReceita" value="receita">Receita</label>
+        </div>
+        <div class="amount-field"><span>R$</span><input id="fValor" inputmode="decimal" placeholder="0,00" aria-label="Valor em reais" autocomplete="off"></div>
+        <div class="field" id="formaField"><span class="label">Forma de pagamento</span>
+          <div class="seg seg-full" role="group" aria-label="Forma de pagamento" data-slider='[aria-pressed="true"]'>
+            <button type="button" data-forma="unica" aria-pressed="true">À vista</button>
+            <button type="button" data-forma="parcelada" aria-pressed="false">Parcelada</button>
+            <button type="button" data-forma="fixa" aria-pressed="false">Fixa mensal</button>
+          </div>
+        </div>
+        <div class="plan-box" id="parcBox" hidden>
+          <div class="two">
+            <div class="field"><label for="fParc">Total de parcelas</label>
+              <div class="stepper"><button type="button" data-step="-1" aria-label="Uma parcela a menos">−</button><input id="fParc" inputmode="numeric" value="10" autocomplete="off"><button type="button" data-step="1" aria-label="Uma parcela a mais">+</button></div>
+            </div>
+            <div class="field"><label for="fPrim">Começar na parcela</label><input id="fPrim" inputmode="numeric" value="1" autocomplete="off"></div>
+          </div>
+          <div class="field"><span class="label">O valor digitado é</span>
+            <div class="seg seg-full" role="group" aria-label="O valor digitado é" data-slider='[aria-pressed="true"]'>
+              <button type="button" data-base="parcela" aria-pressed="true">De cada parcela</button>
+              <button type="button" data-base="total" aria-pressed="false">O total da compra</button>
+            </div>
+          </div>
+          <p class="hint">Financiamento ou consórcio já em andamento? Informe em qual parcela você está, por exemplo 13 de 48.</p>
+        </div>
+        <div class="plan-box" id="fixaBox" hidden>
+          <p class="hint">Repete todo mês no mesmo dia, sem data para acabar. Você encerra quando quiser na tela Parcelas.</p>
+        </div>
+        <div class="field" id="payField"><span class="label">Pagar com</span><div class="cats" id="payOpts" role="group" aria-label="Pagar com"></div></div>
+        <div class="field"><label for="fDesc">Descrição</label><input id="fDesc" maxlength="80" placeholder="Ex.: Mercado da semana" autocomplete="off"></div>
+        <div class="field"><span class="label">Categoria</span><div class="cats" id="cats" role="group" aria-label="Categoria"></div></div>
+        <div class="field"><label for="fData" id="fDataLabel">Data</label><input id="fData" type="date"></div>
+        <p class="preview" id="planPreview" hidden></p>
+        <button class="btn btn-accent" id="addBtn" type="submit" style="padding:13px">Adicionar lançamento</button>
+        <p class="msg" id="formMsg" role="status"></p>
+      </div>
+    </form>
+  </div>
+</div>
+
+
+<div class="overlay" id="cardOverlay" aria-hidden="true">
+  <div class="modal glass" id="cardModal" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
+    <div class="modal-head"><h2 id="cardTitle">Novo cartão</h2><button class="round" type="button" id="closeCard" aria-label="Fechar"><svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <form id="cardForm" novalidate>
+      <div style="display:grid;gap:14px">
+        <div class="cc cc-static" id="ccPreview" aria-hidden="true">
+          <div class="cc-top"><b id="ccpName">Nome do cartão</b><span class="cc-st">Aberta</span></div>
+          <div class="cc-chip"></div>
+          <div class="cc-mid"><span>Fatura atual</span><b>R$ 0,00</b></div>
+          <div class="cc-bot"><span class="o" id="ccpMeta">Fecha dia — · vence dia —</span></div>
+        </div>
+        <div class="field"><label for="cNome">Nome do cartão</label><input id="cNome" maxlength="30" placeholder="Ex.: Cartão principal" autocomplete="off"></div>
+        <div class="field"><span class="label">Cor</span><div class="swatches" id="swatches" role="group" aria-label="Cor do cartão"></div></div>
+        <div class="two">
+          <div class="field"><label for="cFech">Dia do fechamento</label><input id="cFech" inputmode="numeric" placeholder="3" autocomplete="off"></div>
+          <div class="field"><label for="cVenc">Dia do vencimento</label><input id="cVenc" inputmode="numeric" placeholder="10" autocomplete="off"></div>
+        </div>
+        <p class="hint">Compras feitas a partir do dia do fechamento entram na fatura seguinte.</p>
+        <div class="field"><label for="cLim">Limite do cartão (opcional)</label><input id="cLim" inputmode="decimal" placeholder="0,00" autocomplete="off"></div>
+        <button class="btn btn-accent" id="cardSave" type="submit" style="padding:13px">Salvar cartão</button>
+        <div id="cardDelWrap" style="display:flex;justify-content:center"></div>
+        <p class="msg" id="cardMsg" role="status"></p>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").then(reg => {
+        reg.addEventListener("updatefound", () => {
+          const w = reg.installing;
+          w && w.addEventListener("statechange", () => { if (w.state === "installed" && navigator.serviceWorker.controller) w.postMessage("skipWaiting"); });
+        });
+      }).catch(() => {});
+      let reloaded = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloaded) { reloaded = true; location.reload(); } });
+    });
+  }
+</script>
+</body>
+</html>
