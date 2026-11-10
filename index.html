@@ -368,8 +368,10 @@
           w && w.addEventListener("statechange", () => { if (w.state === "installed" && navigator.serviceWorker.controller) w.postMessage("skipWaiting"); });
         });
       }).catch(() => {});
+      // recarrega só quando chega uma versão nova, não na primeira visita
+      const hadController = !!navigator.serviceWorker.controller;
       let reloaded = false;
-      navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloaded) { reloaded = true; location.reload(); } });
+      navigator.serviceWorker.addEventListener("controllerchange", () => { if (hadController && !reloaded) { reloaded = true; location.reload(); } });
     });
   }
 </script>
