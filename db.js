@@ -192,7 +192,7 @@
       $("gGo").disabled = true; msg("gMsg", signup ? "Criando conta…" : "Entrando…");
       try {
         if (signup) {
-          const { data, error } = await sb.auth.signUp({ email: em, password: pw });
+          const { data, error } = await sb.auth.signUp({ email: em, password: pw, options: { emailRedirectTo: location.origin + location.pathname } });
           if (error) throw error;
           if (!data.session) { msg("gMsg", "Conta criada. Abra o e-mail de confirmação que enviamos e depois volte aqui para entrar."); showLoginAfterSignup(em); return; }
           onSession(data.session);

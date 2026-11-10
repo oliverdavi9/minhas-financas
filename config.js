@@ -5,6 +5,6 @@
  * Se ficar vazio, o app pede esses dados na primeira vez que abrir.
  */
 window.SUPABASE_CONFIG = {
-  url: "",
-  anonKey: ""
+  url: "https://reuntjuxmrbbhvxlykfg.supabase.co",
+  anonKey: "sb_publishable_cgUkazldpbLo1I6njL_Lqw_8B0FvQis"
 };

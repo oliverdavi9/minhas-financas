@@ -3,7 +3,7 @@
  * Guarda os arquivos do app no aparelho para abrir rápido e sem internet.
  * Ao publicar uma versão nova, aumente o número em VERSION.
  */
-const VERSION = "mf-v2";
+const VERSION = "mf-v3";
 const SHELL = [
   "./",
   "index.html",
