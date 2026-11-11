@@ -40,6 +40,7 @@ O app está pronto para o **GitHub Pages**: Settings → Pages → *Deploy from 
 | `styles.css` | Visual (vidro fosco, temas claro e escuro) |
 | `app.js` | Telas e regras: parcelas, faturas, orçamento, gráficos |
 | `db.js` | Login, sincronização com o Supabase, cópia local e backup |
+| `importar.js` | Leitura de planilhas do Excel e CSV |
 | `config.js` | URL e chave do Supabase |
 | `sw.js` | Guarda o app no aparelho para abrir sem internet |
 | `manifest.webmanifest`, `icons/` | Nome e ícone do app instalado |
@@ -48,6 +49,17 @@ O app está pronto para o **GitHub Pages**: Settings → Pages → *Deploy from 
 ## Publicar uma versão nova
 
 Depois de mudar qualquer arquivo, aumente `VERSION` em `sw.js` (por exemplo, `mf-v2`). Assim, o iPhone baixa a versão nova na próxima vez que abrir o app.
+
+## Importar uma planilha
+
+Em **Sua conta** (ícone de pessoa no topo), toque em **Importar planilha do Excel** e escolha o arquivo: Excel (.xlsx ou .xls), Numbers, Google Planilhas baixada como .xlsx, ou .csv.
+
+- O app procura as colunas de data, descrição, valor, categoria, cartão ou forma de pagamento, e parcela (como `3/10`). Se ele errar alguma, use **Ajustar colunas** em cada aba.
+- Funciona com uma aba por mês (Janeiro, Fevereiro…), com uma lista única e com planilhas de orçamento que têm os meses lado a lado.
+- Compras parceladas viram parcelamentos e continuam aparecendo nos meses seguintes. Se a mesma compra aparece em vários meses (3/10, 4/10…), ela vira um parcelamento só.
+- Cartões que ainda não existem no app são criados. Na prévia você informa o dia de fechamento e de vencimento de cada um.
+- Linhas de total e saldo são ignoradas, e o que já estava no app não entra de novo.
+- Cada importação aparece em **Importações anteriores** e pode ser desfeita.
 
 ## Backup
 

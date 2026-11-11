@@ -999,6 +999,12 @@
 
   render(); route();
 
+  // usado pelo importador de planilhas (importar.js)
+  window.FinApp = {
+    state, CATS, CARD_COLORS, toast, money,
+    goMonth(ym) { if (ym) { state.mes = ym; render(); } }
+  };
+
   /* ---------- dados ---------- */
   $("accountBtn").addEventListener("click", () => { if (window.FinDB) window.FinDB.openAccount(); });
   (async () => {

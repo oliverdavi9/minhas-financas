@@ -7,7 +7,7 @@
  */
 (function () {
   "use strict";
-  const COLS = ["lancamentos", "planos", "cartoes", "pagamentos", "config"];
+  const COLS = ["lancamentos", "planos", "cartoes", "pagamentos", "config", "importacoes"];
   const maps = {};
   COLS.forEach(c => { maps[c] = new Map(); });
   const colL = {}, docL = {};
@@ -51,6 +51,9 @@
       docL[k].forEach(fn => { try { fn(snapDoc(col, k.slice(col.length + 1), fromCache)); } catch (e) { console.error(e); } });
     });
   }
+  // junta vários avisos seguidos (ex.: importação de centenas de linhas) em um só
+  const emitT = {};
+  const emitSoon = col => { clearTimeout(emitT[col]); emitT[col] = setTimeout(() => emit(col, false), 60); };
   const emitAll = fromCache => Object.keys(maps).forEach(c => emit(c, fromCache));
 
   async function fetchAll() {
@@ -78,7 +81,7 @@
         if (!row || !row.colecao) { refetchSoon(); return; }
         if (payload.eventType === "DELETE") ensure(row.colecao).delete(row.id);
         else ensure(row.colecao).set(row.id, row.data);
-        saveCache(row.colecao); emit(row.colecao, false);
+        saveCache(row.colecao); emitSoon(row.colecao);
       })
       .subscribe(status => { if (status === "SUBSCRIBED" && fetched) refetchSoon(); });
   }
@@ -102,6 +105,29 @@
       if (prev !== undefined) { m.set(id, prev); saveCache(col); emit(col, false); }
       throw dbError("unavailable", navigator.onLine ? error.message : "Sem internet");
     }
+  }
+  // grava e apaga muitos registros de uma vez (importação de planilha)
+  async function bulk(writes, deletes) {
+    const now = new Date().toISOString(), touched = new Set();
+    const rows = (writes || []).map(w => ({ user_id: uid, colecao: w.col, id: w.id || newId(), data: clone(w.data), updated_at: now }));
+    for (let i = 0; i < rows.length; i += 400) {
+      const { error } = await sb.from("docs").upsert(rows.slice(i, i + 400));
+      if (error) throw dbError("unavailable", navigator.onLine ? error.message : "Sem internet");
+      rows.slice(i, i + 400).forEach(r => { ensure(r.colecao).set(r.id, r.data); touched.add(r.colecao); });
+    }
+    const byCol = {};
+    (deletes || []).forEach(d => { (byCol[d.col] = byCol[d.col] || []).push(d.id); });
+    for (const col of Object.keys(byCol)) {
+      const ids = byCol[col];
+      for (let i = 0; i < ids.length; i += 200) {
+        const part = ids.slice(i, i + 200);
+        const { error } = await sb.from("docs").delete().eq("colecao", col).in("id", part);
+        if (error) throw dbError("unavailable", navigator.onLine ? error.message : "Sem internet");
+        part.forEach(id => ensure(col).delete(id)); touched.add(col);
+      }
+    }
+    touched.forEach(c => { saveCache(c); emit(c, false); });
+    return rows.map(r => r.id);
   }
   function docRef(col, id) {
     return {
@@ -254,6 +280,7 @@
       '<div style="display:grid;gap:10px">' +
       '<button class="btn btn-glass" id="aSync" type="button">Atualizar dados agora</button>' +
       '<button class="btn btn-glass" id="aTheme" type="button">Alternar tema claro e escuro</button>' +
+      '<button class="btn btn-accent" id="aSheet" type="button">Importar planilha do Excel</button>' +
       '<button class="btn btn-glass" id="aExport" type="button">Exportar backup</button>' +
       '<label class="btn btn-glass" for="aFile" style="cursor:pointer">Importar backup<input id="aFile" type="file" accept="application/json,.json" hidden></label>' +
       '<button class="btn btn-glass" id="aImportGo" type="button" hidden></button>' +
@@ -264,6 +291,7 @@
     $("account").addEventListener("click", e => { if (e.target === $("account")) close("account"); });
     $("aSync").addEventListener("click", async () => { msg("aMsg", "Atualizando…"); try { await fetchAll(); msg("aMsg", "Dados atualizados."); } catch (e) { msg("aMsg", "Sem conexão com o servidor agora.", true); } });
     $("aExport").addEventListener("click", shareBackup);
+    $("aSheet").addEventListener("click", () => { close("account"); if (window.FinImport) window.FinImport.open(); });
     $("aTheme").addEventListener("click", () => { const t = $("themeBtn"); if (t) t.click(); });
     let pending = null;
     $("aFile").addEventListener("change", async e => {
@@ -320,6 +348,6 @@
     sb.auth.onAuthStateChange((ev, session) => { if (session && !uid) onSession(session); });
   }
 
-  window.FinDB = { ready: () => readyP, openAccount, refresh: () => fetchAll() };
+  window.FinDB = { ready: () => readyP, openAccount, refresh: () => fetchAll(), bulk, newId, close };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
 })();
