@@ -50,6 +50,18 @@ O app está pronto para o **GitHub Pages**: Settings → Pages → *Deploy from 
 
 Depois de mudar qualquer arquivo, aumente `VERSION` em `sw.js` (por exemplo, `mf-v2`). Assim, o iPhone baixa a versão nova na próxima vez que abrir o app.
 
+## Busca e filtros
+
+Toda tela tem uma barra de busca e filtros acima da lista principal. A busca ignora acentos e acha pela descrição, categoria, cartão, pessoa, valor ou data. Os filtros variam por tela: tipo, situação, categoria, forma de pagamento e de quem é. **Limpar** volta tudo ao normal.
+
+## A receber
+
+Para compras feitas para outra pessoa (no seu cartão ou por Pix), ligue **É de outra pessoa** ao lançar a despesa e escreva o nome dela. O valor entra na fatura do cartão, mas não conta como sua despesa.
+
+Quando a pessoa te pagar, registre em **A receber** → **Recebi**, ou lance uma receita com **É pagamento de alguém que me devia**. O pagamento não conta como receita. Cada pessoa mostra quanto já pagou, quanto falta até o mês exibido e quanto ainda vai vencer. Os pagamentos abatem primeiro as dívidas mais antigas.
+
+Na mesma tela, a aba **Lançamentos** lista só as compras de outras pessoas e os pagamentos delas no mês, com filtro por pessoa.
+
 ## Importar uma planilha
 
 Em **Sua conta** (ícone de pessoa no topo), toque em **Importar planilha do Excel** e escolha o arquivo: Excel (.xlsx ou .xls), Numbers, Google Planilhas baixada como .xlsx, ou .csv.

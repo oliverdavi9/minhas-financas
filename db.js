@@ -7,7 +7,7 @@
  */
 (function () {
   "use strict";
-  const COLS = ["lancamentos", "planos", "cartoes", "pagamentos", "config", "importacoes"];
+  const COLS = ["lancamentos", "planos", "cartoes", "pagamentos", "config", "importacoes", "recebimentos"];
   const maps = {};
   COLS.forEach(c => { maps[c] = new Map(); });
   const colL = {}, docL = {};

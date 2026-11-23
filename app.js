@@ -21,7 +21,8 @@
 
   const state = {
     tx: [], limites: {}, loaded: false, db: null, readOnly: false,
-    view: null, real: [], plans: [], cards: [], pagos: new Set(), pay: "", selCard: null, cardCor: "roxo", forma: "unica", base: "parcela", mes: thisMonth, range: 6, kind: "todos", q: "", editingCat: null,
+    view: null, real: [], plans: [], mine: [], recs: [], ter: false, openPeople: new Set(), rcView: "pessoas", rcPerson: "",
+    f: { visao: { q: "", tipo: "" }, orcamento: { q: "", st: "" }, parcelas: { q: "", st: "", forma: "", cartao: "" }, cartoes: { q: "", de: "", cat: "" }, pessoas: { q: "", st: "" }, rclanc: { q: "", tipo: "" }, extrato: { cat: "", cartao: "", de: "" } }, cards: [], pagos: new Set(), pay: "", selCard: null, cardCor: "roxo", forma: "unica", base: "parcela", mes: thisMonth, range: 6, kind: "todos", q: "", editingCat: null,
     lastChartKey: "", cat: "Moradia"
   };
 
@@ -31,7 +32,7 @@
   const inMonth = (t, ym) => t.data && t.data.slice(0, 7) === ym;
   function totals(ym) {
     let inc = 0, out = 0;
-    for (const t of state.tx) if (inMonth(t, ym)) { if (t.tipo === "receita") inc += t.valorCentavos; else out += t.valorCentavos; }
+    for (const t of state.mine) if (inMonth(t, ym)) { if (t.tipo === "receita") inc += t.valorCentavos; else out += t.valorCentavos; }
     return { inc, out, bal: inc - out };
   }
   function parseMoney(str) {
@@ -105,7 +106,7 @@
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", paintThemeBtn);
 
   /* ---------- navegação entre telas ---------- */
-  const VIEWS = ["visao", "orcamento", "parcelas", "cartoes", "extrato"];
+  const VIEWS = ["visao", "orcamento", "parcelas", "cartoes", "receber", "extrato"];
   // pílula deslizante: um único efeito para menu, doca e filtros
   function syncSliders() {
     document.querySelectorAll("[data-slider]").forEach(g => {
@@ -141,6 +142,7 @@
       if (v === "orcamento") renderBudget();
       if (v === "parcelas") renderPlans();
       if (v === "cartoes") renderCards();
+      if (v === "receber") renderReceber();
       syncSliders();
       enterT = setTimeout(() => next.classList.remove("enter"), 1300);
     };
@@ -155,17 +157,20 @@
 
   /* ---------- render ---------- */
   function render() {
+    syncFbars();
     state.tx = state.real.concat(state.plans.flatMap(p => planOccurrences(p, horizon())));
+    // o que é de outra pessoa fica na fatura e no extrato, mas fora das suas receitas e despesas
+    state.mine = state.tx.filter(t => !t.terceiro);
     document.body.classList.toggle("loading", !state.loaded);
     $("monthLabel").textContent = monthName(state.mes, { month: "short", year: "numeric" }).replace(".", "").replace(" de ", " ");
     $("exampleNotice").hidden = !(state.real.some(t => t.exemplo) || state.plans.some(p => p.exemplo) || state.cards.some(c => c.exemplo));
-    renderHello(); renderBalance(); renderTiles(); renderChart(); renderGauge(); renderBudget(); renderActs(); renderRecent(); renderHeads(); renderPlans(); renderCards();
+    renderHello(); renderBalance(); renderTiles(); renderChart(); renderGauge(); renderBudget(); renderActs(); renderRecent(); renderHeads(); renderPlans(); renderCards(); renderReceber();
   }
 
   function renderHello() {
     const h = new Date().getHours();
     $("greet").textContent = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
-    const rows = state.tx.filter(t => inMonth(t, state.mes));
+    const rows = state.mine.filter(t => inMonth(t, state.mes));
     const out = rows.filter(t => t.tipo === "despesa");
     const [y, m] = state.mes.split("-").map(Number);
     const days = state.mes === thisMonth ? today.getDate() : new Date(y, m, 0).getDate();
@@ -180,14 +185,14 @@
   function renderBalance() {
     const end = state.mes;
     let acc = 0;
-    for (const t of state.tx) if (t.data && t.data.slice(0, 7) <= end) acc += t.tipo === "receita" ? t.valorCentavos : -t.valorCentavos;
+    for (const t of state.mine) if (t.data && t.data.slice(0, 7) <= end) acc += t.tipo === "receita" ? t.valorCentavos : -t.valorCentavos;
     const prevAcc = acc - totals(end).bal;
     countTo($("balTotal"), acc, money);
     const pct = prevAcc ? Math.round((acc - prevAcc) / Math.abs(prevAcc) * 100) : null;
     setDelta($("balDelta"), state.loaded ? pct : null, false, " no mês");
     const spent = {};
     let total = 0;
-    for (const t of state.tx) if (t.tipo === "despesa" && inMonth(t, state.mes)) { spent[t.categoria] = (spent[t.categoria] || 0) + t.valorCentavos; total += t.valorCentavos; }
+    for (const t of state.mine) if (t.tipo === "despesa" && inMonth(t, state.mes)) { spent[t.categoria] = (spent[t.categoria] || 0) + t.valorCentavos; total += t.valorCentavos; }
     const top = Object.entries(spent).sort((a, b) => b[1] - a[1]).slice(0, 3);
     const box = $("wallets"); box.textContent = "";
     $("walletsTotal").textContent = total ? money0(total) + " no total" : "";
@@ -302,7 +307,7 @@
   })();
   function spentByCat() {
     const s = {};
-    for (const t of state.tx) if (t.tipo === "despesa" && inMonth(t, state.mes)) s[t.categoria] = (s[t.categoria] || 0) + t.valorCentavos;
+    for (const t of state.mine) if (t.tipo === "despesa" && inMonth(t, state.mes)) s[t.categoria] = (s[t.categoria] || 0) + t.valorCentavos;
     return s;
   }
   function renderGauge() {
@@ -325,7 +330,13 @@
   function renderBudget() {
     const box = $("budget"); box.textContent = "";
     const s = spentByCat();
-    const cats = CATS.despesa.slice().sort((a, b) => (s[b] || 0) - (s[a] || 0));
+    const fo = state.f.orcamento;
+    const cats = CATS.despesa.slice().sort((a, b) => (s[b] || 0) - (s[a] || 0)).filter(c => {
+      const v = s[c] || 0, lim = state.limites[c] || 0, pct = lim ? v / lim : 0;
+      if (!fhit(fo.q, c)) return false;
+      return !fo.st || (fo.st === "gasto" ? v > 0 : fo.st === "lim" ? lim > 0 : fo.st === "sem" ? !lim : fo.st === "perto" ? lim && pct >= .8 && pct <= 1 : lim && pct > 1);
+    });
+    if (!cats.length) emptyState(box, "Nenhuma categoria com esse filtro.");
     cats.forEach((c, idx) => {
       const v = s[c] || 0, lim = state.limites[c] || 0, pct = lim ? v / lim : 0;
       const row = document.createElement("div"); row.className = "brow";
@@ -388,11 +399,13 @@
     if (t.exemplo) { const x = document.createElement("span"); x.className = "ex"; x.textContent = "exemplo"; d1.append(x); }
     if (t.virtual) { const x = document.createElement("span"); x.className = "ex rec"; x.textContent = t.de ? t.parcela + "/" + t.de : "fixa"; d1.append(x); }
     const card = cardById(t.cartao);
-    const d2 = document.createElement("span"); d2.textContent = t.categoria + " · " + t.data.slice(8, 10) + "/" + t.data.slice(5, 7) + (card ? " · " + card.nome : "");
+    const ter = !!t.terceiro;
+    if (ter) { r.classList.add("ter"); av.className = "av ter"; }
+    const d2 = document.createElement("span"); d2.textContent = (ter ? "De " + t.terceiro : t.categoria) + " · " + t.data.slice(8, 10) + "/" + t.data.slice(5, 7) + (card ? " · " + card.nome : "");
     tt.append(d1, d2);
     const dt = document.createElement("span"); dt.className = "d num";
     dt.textContent = new Date(t.data + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
-    const pill = document.createElement("span"); pill.className = "pill " + (inc ? "in" : "out"); pill.textContent = inc ? "Receita" : "Despesa";
+    const pill = document.createElement("span"); pill.className = "pill " + (ter ? "ter" : inc ? "in" : "out"); pill.textContent = ter ? "A receber" : inc ? "Receita" : "Despesa";
     const amt = document.createElement("span"); amt.className = "amt num rt" + (inc ? " in" : ""); amt.textContent = (inc ? "+ " : "− ") + money(t.valorCentavos);
     r.append(av, tt, dt, pill, amt);
     if (t.virtual && withDelete) {
@@ -426,19 +439,24 @@
     const q = state.q.trim().toLowerCase();
     const rows = state.tx.filter(t => inMonth(t, state.mes))
       .filter(t => state.kind === "todos" || t.tipo === state.kind)
-      .filter(t => !q || (t.descricao + " " + t.categoria).toLowerCase().includes(q))
+      .filter(t => { const f = state.f.extrato; return (!f.cat || t.categoria === f.cat) && (!f.cartao || (f.cartao === "none" ? !cardById(t.cartao) : t.cartao === f.cartao)) && (!f.de || (f.de === "ter") === !!t.terceiro); })
+      .filter(t => fhit(q, txText(t)))
       .sort(sortRecent);
-    if (!rows.length) emptyState(box, q || state.kind !== "todos" ? "Nada encontrado com esse filtro." : "Nenhum lançamento em " + monthName(state.mes) + ". Toque em “Lançar” para registrar o primeiro.");
+    if (!rows.length) emptyState(box, q || state.kind !== "todos" || fbActive("extrato") ? "Nada encontrado com esse filtro." : "Nenhum lançamento em " + monthName(state.mes) + ". Toque em “Lançar” para registrar o primeiro.");
     rows.forEach((t, i) => box.append(buildRow(t, i, true)));
-    const sum = rows.reduce((s, t) => s + (t.tipo === "receita" ? t.valorCentavos : -t.valorCentavos), 0);
+    const sum = rows.reduce((s, t) => s + (t.terceiro ? 0 : t.tipo === "receita" ? t.valorCentavos : -t.valorCentavos), 0);
     $("actCount").textContent = rows.length + (rows.length === 1 ? " lançamento" : " lançamentos");
     $("actSum").textContent = rows.length ? "Resultado: " + money(sum) : "";
   }
   function renderRecent() {
     const box = $("recent"); box.textContent = "";
     if (!state.loaded) { skeletonRows(box, 3); return; }
-    const rows = state.tx.filter(t => inMonth(t, state.mes)).sort(sortRecent).slice(0, 5);
-    if (!rows.length) emptyState(box, "Nenhum lançamento em " + monthName(state.mes) + " ainda.");
+    const f = state.f.visao, active = !!(f.q || f.tipo);
+    const rows = state.tx.filter(t => inMonth(t, state.mes))
+      .filter(t => !f.tipo || (f.tipo === "ter" ? !!t.terceiro : t.tipo === f.tipo && !t.terceiro))
+      .filter(t => fhit(f.q, txText(t)))
+      .sort(sortRecent).slice(0, active ? 50 : 5);
+    if (!rows.length) emptyState(box, active ? "Nada encontrado com esse filtro em " + monthName(state.mes) + "." : "Nenhum lançamento em " + monthName(state.mes) + " ainda.");
     rows.forEach((t, i) => box.append(buildRow(t, i, false)));
   }
   function renderHeads() {
@@ -478,7 +496,7 @@
       out.push({
         id: "p_" + p.id + "_" + n, virtual: true, plano: p.id, parcela: n, de: N,
         tipo: "despesa", descricao: p.descricao, categoria: p.categoria, valorCentavos: v,
-        data: ym + "-" + pad(Math.min(day, new Date(y, m, 0).getDate())), exemplo: !!p.exemplo, criadoEm: p.criadoEm || "", cartao: p.cartao || null
+        data: ym + "-" + pad(Math.min(day, new Date(y, m, 0).getDate())), exemplo: !!p.exemplo, criadoEm: p.criadoEm || "", cartao: p.cartao || null, terceiro: p.terceiro || null
       });
     }
     return out;
@@ -521,6 +539,7 @@
     const badge = document.createElement("span"); badge.className = "badge" + (s.ativo ? "" : " done");
     badge.textContent = !s.started && s.ativo ? "Começa em " + fmMonth(p.inicio.slice(0, 7)) : s.label;
     name.append(nm, badge);
+    if (p.terceiro) { const x = document.createElement("span"); x.className = "badge ter"; x.textContent = "de " + p.terceiro; name.append(x); }
     if (p.exemplo) { const x = document.createElement("span"); x.className = "ex"; x.textContent = "exemplo"; name.append(x); }
     const dia = Number(p.inicio.slice(8, 10));
     const meta = document.createElement("span"); meta.className = "label";
@@ -557,21 +576,30 @@
     const R = state.mes;
     const list = state.plans.map(p => ({ p, s: planStatus(p, R) }))
       .sort((a, b) => (b.s.ativo - a.s.ativo) || (b.p.valorCentavos - a.p.valorCentavos));
-    const monthSum = state.tx.filter(t => t.virtual && inMonth(t, R)).reduce((a, t) => a + t.valorCentavos, 0);
-    const left = list.reduce((a, x) => a + (x.s.fixa ? 0 : x.s.restValor), 0);
+    const monthSum = state.mine.filter(t => t.virtual && inMonth(t, R)).reduce((a, t) => a + t.valorCentavos, 0);
+    const left = list.reduce((a, x) => a + (x.s.fixa || x.p.terceiro ? 0 : x.s.restValor), 0);
     countTo($("pMonth"), state.loaded ? monthSum : 0, money0);
     countTo($("pLeft"), state.loaded ? left : 0, money0);
     $("pCount").textContent = state.loaded ? String(list.filter(x => x.s.ativo).length) : "—";
     $("pMonthLabel").textContent = "comprometido em " + shortMonth(R);
     if (!state.loaded) { skeletonRows(box, 3); renderProj(); return; }
+    const fp = state.f.parcelas;
+    const shown = list.filter(({ p, s }) => {
+      const card = cardById(p.cartao);
+      return fhit(fp.q, [p.descricao, p.categoria, card && card.nome, p.terceiro, money(p.valorCentavos)].join(" ")) &&
+        (!fp.st || (fp.st === "ativo") === !!s.ativo) &&
+        (!fp.forma || (fp.forma === "parcelada") === !!p.parcelas) &&
+        (!fp.cartao || (fp.cartao === "none" ? !card : p.cartao === fp.cartao));
+    });
     if (!list.length) emptyState(box, "Nenhum parcelamento ainda. Use “Nova parcelada” para lançar uma compra parcelada, um financiamento ou um consórcio.");
-    list.forEach(({ p, s }, i) => box.append(planCard(p, s, i)));
+    else if (!shown.length) emptyState(box, "Nenhum parcelamento com esse filtro.");
+    shown.forEach(({ p, s }, i) => box.append(planCard(p, s, i)));
     renderProj();
   }
   function renderProj() {
     const box = $("proj"); box.textContent = "";
     const months = []; for (let i = 0; i < 6; i++) months.push(shiftMonth(state.mes, i));
-    const sums = months.map(m => state.tx.filter(t => t.virtual && inMonth(t, m)).reduce((a, t) => a + t.valorCentavos, 0));
+    const sums = months.map(m => state.mine.filter(t => t.virtual && inMonth(t, m)).reduce((a, t) => a + t.valorCentavos, 0));
     const max = Math.max(1, ...sums);
     months.forEach((m, i) => {
       const col = document.createElement("div"); col.className = "pcol" + (i === 0 ? " cur" : "");
@@ -599,6 +627,7 @@
     $("fDataLabel").textContent = state.forma === "parcelada" ? "Data da primeira parcela a lançar" : state.forma === "fixa" ? "Data do primeiro mês" : "Data";
     $("addBtn").textContent = state.forma === "parcelada" ? "Lançar parcelamento" : state.forma === "fixa" ? "Lançar conta fixa" : "Adicionar lançamento";
     $("modalTitle").textContent = !despesa ? "Nova receita" : state.forma === "parcelada" ? "Despesa parcelada" : state.forma === "fixa" ? "Conta fixa" : "Nova despesa";
+    paintTer();
     updatePreview();
     requestAnimationFrame(syncSliders);
   }
@@ -792,8 +821,12 @@
     const Y = state.mes, items = faturaItems(c, Y).sort(sortRecent), { close, due } = faturaDates(c, Y);
     $("fatTitle").textContent = "Fatura " + c.nome;
     $("fatMeta").textContent = "fecha " + ddmm(close) + " · vence " + ddmm(due) + " · " + items.length + (items.length === 1 ? " compra" : " compras");
+    const fc = state.f.cartoes;
+    const shown = items.filter(t => fhit(fc.q, txText(t)) && (!fc.de || (fc.de === "ter") === !!t.terceiro) && (!fc.cat || t.categoria === fc.cat));
+    if (shown.length !== items.length) $("fatMeta").textContent += " · mostrando " + shown.length + " · " + money(sumV(shown));
     if (!items.length) emptyState(box, "Nenhuma compra na fatura que vence em " + ddmm(due) + ".");
-    items.forEach((t, i) => box.append(buildRow(t, i, true)));
+    else if (!shown.length) emptyState(box, "Nenhuma compra com esse filtro nesta fatura.");
+    shown.forEach((t, i) => box.append(buildRow(t, i, true)));
   }
 
   /* forma de pagamento (cartão) no lançamento */
@@ -919,6 +952,7 @@
     setForma(kind === "parcelada" || kind === "fixa" ? kind : "unica");
     setBase("parcela");
     state.pay = ""; paintPay();
+    state.ter = kind === "terceiro"; $("fTer").value = "";
     $("fParc").value = "10"; $("fPrim").value = "1";
     $("fData").value = ymd(state.mes === thisMonth ? today : new Date(state.mes + "-01T12:00:00"));
     $("formMsg").textContent = ""; $("formMsg").className = "msg";
@@ -935,7 +969,8 @@
   $("overlay").addEventListener("click", e => { if (e.target === $("overlay")) closeModal(); });
   document.addEventListener("keydown", e => {
     if (e.key !== "Escape") return;
-    if ($("cardOverlay").classList.contains("open")) closeCard();
+    if ($("rcOverlay").classList.contains("open")) closeRc();
+    else if ($("cardOverlay").classList.contains("open")) closeCard();
     else if ($("overlay").classList.contains("open")) closeModal();
   });
   document.querySelectorAll('input[name="tipo"]').forEach(r => r.addEventListener("change", () => {
@@ -949,24 +984,30 @@
   $("txForm").addEventListener("submit", async e => {
     e.preventDefault();
     const descricao = $("fDesc").value.trim(), valorCentavos = parseMoney($("fValor").value), data = $("fData").value;
+    const tipo = document.querySelector('input[name="tipo"]:checked').value;
+    const ter = state.ter ? canonName($("fTer").value) : "";
     if (valorCentavos <= 0) return fail("Informe um valor maior que zero, como 45,90.", $("fValor"));
-    if (!descricao) return fail("Escreva uma descrição para o lançamento.", $("fDesc"));
+    if (state.ter && !ter) return fail("Escreva o nome da pessoa.", $("fTer"));
+    if (!descricao && !(ter && tipo === "receita")) return fail("Escreva uma descrição para o lançamento.", $("fDesc"));
     if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return fail("Escolha a data do lançamento.", $("fData"));
     if (!state.db) return fail("Entre na sua conta para salvar lançamentos.");
-    const tipo = document.querySelector('input[name="tipo"]:checked').value;
     const forma = tipo === "despesa" ? state.forma : "unica";
+    const categoria = ter ? "Outros" : state.cat;
     $("addBtn").disabled = true;
     try {
-      if (forma === "unica") {
-        await state.db.collection("lancamentos").add({ tipo, descricao, valorCentavos, data, categoria: state.cat, cartao: tipo === "despesa" ? (state.pay || null) : null, criadoEm: new Date().toISOString() });
-        toast((tipo === "receita" ? "Receita" : "Despesa") + " de " + money(valorCentavos) + " adicionada");
+      if (ter && tipo === "receita") {
+        await state.db.collection("recebimentos").add({ pessoa: ter, valorCentavos, data, obs: "", criadoEm: new Date().toISOString() });
+        toast(ter + " te pagou " + money(valorCentavos) + ". Não entra como receita.");
+      } else if (forma === "unica") {
+        await state.db.collection("lancamentos").add({ tipo, descricao, valorCentavos, data, categoria, cartao: tipo === "despesa" ? (state.pay || null) : null, terceiro: ter || null, criadoEm: new Date().toISOString() });
+        toast(ter ? "Lançado para " + ter + ": " + money(valorCentavos) + ". Não conta como sua despesa." : (tipo === "receita" ? "Receita" : "Despesa") + " de " + money(valorCentavos) + " adicionada");
       } else {
         const N = forma === "parcelada" ? intVal("fParc", 2, 120, 10) : 0;
         const primeira = forma === "parcelada" ? intVal("fPrim", 1, N, 1) : 1;
         const total = forma === "parcelada" && state.base === "total" ? valorCentavos : null;
         const parcela = total ? Math.round(total / N) : valorCentavos;
-        await state.db.collection("planos").add({ forma, descricao, categoria: state.cat, valorCentavos: parcela, totalCentavos: total, parcelas: N, primeira, inicio: data, cartao: state.pay || null, criadoEm: new Date().toISOString() });
-        toast(forma === "parcelada" ? "Parcelado em " + (N - primeira + 1) + "x de " + money(parcela) : "Conta fixa de " + money(parcela) + " por mês criada");
+        await state.db.collection("planos").add({ forma, descricao, categoria, valorCentavos: parcela, totalCentavos: total, parcelas: N, primeira, inicio: data, cartao: state.pay || null, terceiro: ter || null, criadoEm: new Date().toISOString() });
+        toast((forma === "parcelada" ? "Parcelado em " + (N - primeira + 1) + "x de " + money(parcela) : "Conta fixa de " + money(parcela) + " por mês criada") + (ter ? " para " + ter : ""));
       }
       $("fDesc").value = ""; $("fValor").value = "";
       closeModal();
@@ -975,6 +1016,391 @@
       fail(err && err.code === "invalid_argument" ? "Não deu para salvar. Confira os dados e tente de novo." : (navigator.onLine ? "Não deu para salvar agora. Tente de novo em instantes." : "Sem internet. Conecte-se para salvar."));
     } finally { $("addBtn").disabled = false; }
   });
+
+  /* ---------- a receber: o que outras pessoas te devem ---------- */
+  const pkey = s => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+  // usa a grafia já cadastrada quando o nome é o mesmo ("joão" vira "João")
+  function canonName(n) {
+    const clean = String(n || "").trim().replace(/\s+/g, " ").slice(0, 40), k = pkey(clean);
+    if (!k) return "";
+    const hit = knownPeople().find(x => pkey(x) === k);
+    return hit || clean;
+  }
+  function knownPeople() {
+    // por pessoa, a grafia mais usada (no empate, a que começa com maiúscula)
+    const seen = new Map();
+    const add = n => { const k = pkey(n); if (!k) return; const e = seen.get(k) || { n: 0, sp: new Map() }; e.n++; const t = n.trim().replace(/\s+/g, " "); e.sp.set(t, (e.sp.get(t) || 0) + 1); seen.set(k, e); };
+    state.real.forEach(t => t.terceiro && add(t.terceiro));
+    state.plans.forEach(p => p.terceiro && add(p.terceiro));
+    state.recs.forEach(r => r.pessoa && add(r.pessoa));
+    const best = e => [...e.sp.entries()].sort((a, b) => b[1] - a[1] || (/^[A-ZÀ-Ý]/.test(b[0]) - /^[A-ZÀ-Ý]/.test(a[0])))[0][0];
+    return [...seen.values()].sort((a, b) => b.n - a.n).map(best);
+  }
+  // cada dívida vence no mês da fatura (se foi no cartão) ou no mês do lançamento;
+  // os pagamentos abatem as dívidas mais antigas primeiro
+  function peopleData(R) {
+    const far = shiftMonth(thisMonth, 130), fixUntil = R > thisMonth ? R : thisMonth;
+    const map = new Map();
+    const get = name => { const k = pkey(name); if (!map.has(k)) map.set(k, { k, nome: canonName(name), debts: [], pays: [] }); return map.get(k); };
+    state.real.forEach(t => { if (t.terceiro) get(t.terceiro).debts.push(Object.assign({}, t)); });
+    state.plans.forEach(p => { if (p.terceiro) planOccurrences(p, p.parcelas ? far : fixUntil).forEach(t => get(p.terceiro).debts.push(t)); });
+    state.recs.forEach(r => { if (r.pessoa) get(r.pessoa).pays.push(r); });
+    const out = [];
+    map.forEach(pp => {
+      pp.debts.forEach(t => { const c = cardById(t.cartao); t.due = c ? dueYm(c, t.data) : t.data.slice(0, 7); });
+      pp.debts.sort((a, b) => a.due.localeCompare(b.due) || a.data.localeCompare(b.data));
+      pp.pays.sort((a, b) => b.data.localeCompare(a.data) || (b.criadoEm || "").localeCompare(a.criadoEm || ""));
+      pp.paid = pp.pays.filter(r => r.data.slice(0, 7) <= R).reduce((a, r) => a + r.valorCentavos, 0);
+      let left = pp.paid;
+      pp.pend = 0; pp.fut = 0; pp.dueSum = 0; pp.nPend = 0;
+      pp.debts.forEach(t => {
+        t.cover = Math.min(left, t.valorCentavos); left -= t.cover;
+        if (t.due <= R) { pp.dueSum += t.valorCentavos; pp.pend += t.valorCentavos - t.cover; if (t.cover < t.valorCentavos) pp.nPend++; }
+        else pp.fut += t.valorCentavos - t.cover;
+      });
+      pp.credit = left;
+      pp.gotMonth = pp.pays.filter(r => r.data.slice(0, 7) === R).reduce((a, r) => a + r.valorCentavos, 0);
+      out.push(pp);
+    });
+    return out.sort((a, b) => b.pend - a.pend || b.fut - a.fut || a.nome.localeCompare(b.nome));
+  }
+  function renderReceber() {
+    const R = state.mes, ok = state.loaded, list = peopleData(R);
+    const pend = list.reduce((a, p) => a + p.pend, 0), fut = list.reduce((a, p) => a + p.fut, 0), got = list.reduce((a, p) => a + p.gotMonth, 0);
+    countTo($("rcPend"), ok ? pend : 0, money0);
+    countTo($("rcFut"), ok ? fut : 0, money0);
+    countTo($("rcGot"), ok ? got : 0, money0);
+    $("rcPendLabel").textContent = "pendente até " + shortMonth(R);
+    $("rcGotLabel").textContent = "recebido em " + shortMonth(R);
+    // atalho na visão geral
+    const owing = list.filter(p => p.pend > 0);
+    $("cRecChip").hidden = !ok || !(pend > 0);
+    $("cRec").textContent = money0(pend);
+    $("cRecLabel").textContent = owing.length === 1 ? "a receber de " + owing[0].nome : "a receber de " + owing.length + " pessoas";
+    renderRcLanc();
+    const box = $("people"); box.textContent = "";
+    if (!ok) { skeletonRows(box, 2); return; }
+    if (!list.length) { emptyState(box, "Ninguém te deve nada por enquanto. Ao lançar uma despesa, toque em “É de outra pessoa” e acompanhe aqui o que cada um tem que te pagar."); return; }
+    const fpp = state.f.pessoas;
+    const shown = list.filter(pp => fhit(fpp.q, pp.nome) && (!fpp.st || (fpp.st === "pend" ? pp.pend > 0 : fpp.st === "fut" ? pp.fut > 0 : !pp.pend)));
+    if (!shown.length) emptyState(box, "Ninguém encontrado com esse filtro.");
+    shown.forEach((pp, i) => box.append(personCard(pp, i, R)));
+  }
+  // aba "Lançamentos": só o que é de outras pessoas, e os pagamentos delas, no mês exibido
+  function renderRcLanc() {
+    const R = state.mes, box = $("rcActs"); box.textContent = "";
+    const lanc = state.rcView === "lanc";
+    $("people").hidden = lanc; $("rcLanc").hidden = !lanc;
+    document.querySelector('[data-fbar="pessoas"]').hidden = lanc;
+    if (!lanc) return;
+    const fb = $("rcFilter"); fb.textContent = "";
+    const people = knownPeople();
+    if (state.rcPerson && !people.some(n => pkey(n) === state.rcPerson)) state.rcPerson = "";
+    if (people.length > 1) [""].concat(people).forEach(n => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = n || "Todas";
+      b.setAttribute("aria-pressed", String(pkey(n) === state.rcPerson));
+      b.addEventListener("click", () => { state.rcPerson = pkey(n); renderRcLanc(); });
+      fb.append(b);
+    });
+    if (!state.loaded) { skeletonRows(box, 3); $("rcCount").textContent = ""; $("rcSum").textContent = ""; return; }
+    const who = x => !state.rcPerson || pkey(x) === state.rcPerson;
+    const debts = state.tx.filter(t => t.terceiro && inMonth(t, R) && who(t.terceiro));
+    const pays = state.recs.filter(r => r.data && r.data.slice(0, 7) === R && who(r.pessoa)).map(r => Object.assign({ pay: true }, r));
+    const fr = state.f.rclanc;
+    const rows = (fr.tipo === "p" ? [] : debts).concat(fr.tipo === "d" ? [] : pays)
+      .filter(x => fhit(fr.q, x.pay ? ["pagamento", x.pessoa, x.obs, money(x.valorCentavos), ddmm(x.data)].join(" ") : txText(x))).sort((a, b) => b.data.localeCompare(a.data) || (b.criadoEm || "").localeCompare(a.criadoEm || ""));
+    if (!rows.length) emptyState(box, fbActive("rclanc") ? "Nada encontrado com esse filtro." : "Nada de outras pessoas em " + monthName(R) + ". Use “Lançar para alguém” ou “Registrar pagamento”.");
+    rows.forEach((t, i) => box.append(t.pay ? payRow(t, i) : buildRow(t, i, true)));
+    const out = debts.reduce((a, t) => a + t.valorCentavos, 0), got = pays.reduce((a, r) => a + r.valorCentavos, 0);
+    $("rcCount").textContent = debts.length + (debts.length === 1 ? " compra" : " compras") + " · " + pays.length + (pays.length === 1 ? " pagamento" : " pagamentos");
+    $("rcSum").textContent = rows.length ? "Lançado " + money(out) + " · recebido " + money(got) : "";
+  }
+  function payRow(r, i) {
+    const el = document.createElement("div"); el.className = "act"; el.style.animationDelay = Math.min(i, 12) * 35 + "ms";
+    const av = document.createElement("span"); av.className = "av in"; av.textContent = initials(r.pessoa);
+    const tt = document.createElement("div"); tt.className = "t";
+    const d1 = document.createElement("div"); d1.textContent = "Pagamento de " + canonName(r.pessoa);
+    const d2 = document.createElement("span"); d2.textContent = (r.obs ? r.obs + " · " : "") + r.data.slice(8, 10) + "/" + r.data.slice(5, 7);
+    tt.append(d1, d2);
+    const dt = document.createElement("span"); dt.className = "d num";
+    dt.textContent = new Date(r.data + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
+    const pill = document.createElement("span"); pill.className = "pill in"; pill.textContent = "Recebido";
+    const amt = document.createElement("span"); amt.className = "amt num rt in"; amt.textContent = "+ " + money(r.valorCentavos);
+    el.append(av, tt, dt, pill, amt);
+    if (state.readOnly || !state.db) { el.append(document.createElement("span")); return el; }
+    const del = document.createElement("button"); del.type = "button"; del.className = "del";
+    del.setAttribute("aria-label", "Excluir pagamento de " + r.pessoa);
+    del.innerHTML = '<svg class="ico" viewBox="0 0 24 24" style="width:16px;height:16px"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
+    del.addEventListener("click", async () => {
+      if (!del.classList.contains("armed")) { del.classList.add("armed"); toast("Toque de novo para excluir"); setTimeout(() => del.classList.remove("armed"), 3500); return; }
+      del.disabled = true;
+      try { await state.db.doc("recebimentos/" + r.id).delete(); toast("Pagamento excluído"); }
+      catch (e) { del.disabled = false; toast("Não foi possível excluir agora.", true); }
+    });
+    el.append(del);
+    return el;
+  }
+  document.querySelectorAll("[data-rcview]").forEach(b => b.addEventListener("click", () => {
+    state.rcView = b.dataset.rcview;
+    document.querySelectorAll("[data-rcview]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    syncSliders(); renderReceber();
+  }));
+  function personCard(pp, i, R) {
+    const el = document.createElement("div"); el.className = "person" + (pp.pend ? "" : " ok"); el.style.animationDelay = Math.min(i, 10) * 50 + "ms";
+    const head = document.createElement("div"); head.className = "ph";
+    const av = document.createElement("span"); av.className = "av ter"; av.textContent = initials(pp.nome);
+    const mid = document.createElement("div"); mid.className = "pm";
+    const nm = document.createElement("b"); nm.textContent = pp.nome;
+    const st = document.createElement("span"); st.className = "label";
+    st.textContent = pp.pend ? pp.nPend + (pp.nPend === 1 ? " item pendente" : " itens pendentes")
+      : pp.dueSum ? "Tudo pago até " + shortMonth(R) : pp.fut ? "Nada vencido ainda" : "Sem pendências";
+    if (pp.credit > 0) st.textContent += " · " + money(pp.credit) + " pago adiantado";
+    mid.append(nm, st);
+    const right = document.createElement("div"); right.className = "pr";
+    const v = document.createElement("b"); v.className = "num amt"; v.textContent = money(pp.pend);
+    const vl = document.createElement("span"); vl.className = "label"; vl.textContent = pp.pend ? "pendente" : "em dia";
+    right.append(v, vl);
+    head.append(av, mid, right);
+    const tr = document.createElement("div"); tr.className = "track"; const f = document.createElement("i"); tr.append(f);
+    const pct = pp.dueSum ? Math.min(1, (pp.dueSum - pp.pend) / pp.dueSum) : (pp.fut ? 0 : 1);
+    requestAnimationFrame(() => { f.style.width = pct * 100 + "%"; });
+    const foot = document.createElement("div"); foot.className = "pfoot";
+    const note = document.createElement("span"); note.className = "label";
+    note.textContent = "Pagou " + money(pp.dueSum - pp.pend) + " de " + money(pp.dueSum) + (pp.fut ? " · " + money(pp.fut) + " a vencer" : "");
+    const acts = document.createElement("div"); acts.className = "acts-row";
+    const hb = document.createElement("button"); hb.type = "button"; hb.className = "btn btn-glass mini";
+    const open = state.openPeople.has(pp.k);
+    hb.textContent = open ? "Fechar histórico" : "Histórico"; hb.setAttribute("aria-expanded", String(open));
+    const pay = document.createElement("button"); pay.type = "button"; pay.className = "btn btn-ink mini"; pay.textContent = "Recebi";
+    pay.addEventListener("click", () => openRc(pp.nome));
+    acts.append(hb, pay); foot.append(note, acts);
+    const hist = document.createElement("div"); hist.className = "phist"; hist.hidden = !open;
+    hb.addEventListener("click", () => {
+      const now = hist.hidden; hist.hidden = !now;
+      if (now) { state.openPeople.add(pp.k); if (!hist.childElementCount) fillHist(hist, pp, R); } else state.openPeople.delete(pp.k);
+      hb.textContent = now ? "Fechar histórico" : "Histórico"; hb.setAttribute("aria-expanded", String(now));
+    });
+    if (open) fillHist(hist, pp, R);
+    el.append(head, tr, foot, hist);
+    return el;
+  }
+  function fillHist(box, pp, R) {
+    const limit = shiftMonth(R, 3);
+    const debts = pp.debts.filter(t => t.due <= limit);
+    const hidden = pp.debts.length - debts.length;
+    const rows = debts.map(t => ({ k: "d", t, key: t.data })).concat(pp.pays.map(r => ({ k: "p", r, key: r.data }))).sort((a, b) => b.key.localeCompare(a.key));
+    const dd = d => d.slice(8, 10) + "/" + d.slice(5, 7) + "/" + d.slice(2, 4);
+    rows.forEach(x => {
+      const row = document.createElement("div"); row.className = "hrow";
+      const d = document.createElement("span"); d.className = "d num";
+      const t = document.createElement("span"); t.className = "t";
+      const b = document.createElement("small");
+      const v = document.createElement("span"); v.className = "v num";
+      const s = document.createElement("span"); s.className = "st";
+      if (x.k === "d") {
+        const it = x.t, card = cardById(it.cartao);
+        d.textContent = dd(it.data);
+        t.textContent = it.descricao + (it.de ? " " + it.parcela + "/" + it.de : "");
+        b.textContent = (card ? card.nome + " · fatura de " + shortMonth(it.due) : "Pix, dinheiro ou débito");
+        t.append(b);
+        v.textContent = money(it.valorCentavos);
+        const restante = it.valorCentavos - it.cover;
+        if (!restante) { s.textContent = "Pago"; s.classList.add("ok"); }
+        else if (it.due > R) { s.textContent = it.cover ? "Faltam " + money(restante) : "Vence " + shortMonth(it.due); s.classList.add("fut"); }
+        else if (it.cover) { s.textContent = "Faltam " + money(restante); s.classList.add("part"); }
+        else { s.textContent = "Pendente"; s.classList.add("pend"); }
+        row.append(d, t, v, s);
+      } else {
+        const r = x.r;
+        row.classList.add("pay");
+        d.textContent = dd(r.data);
+        t.textContent = "Pagamento"; if (r.obs) { b.textContent = r.obs; t.append(b); }
+        v.textContent = "+ " + money(r.valorCentavos); v.classList.add("in");
+        row.append(d, t, v);
+        if (!state.readOnly && state.db) {
+          const del = twoStep("Apagar", "Confirmar", async () => { await state.db.doc("recebimentos/" + r.id).delete(); toast("Pagamento apagado"); });
+          del.classList.add("st-btn"); row.append(del);
+        } else row.append(s);
+      }
+      box.append(row);
+    });
+    if (hidden) { const m = document.createElement("p"); m.className = "hint"; m.textContent = "E mais " + hidden + (hidden === 1 ? " parcela" : " parcelas") + " nos meses seguintes."; box.append(m); }
+  }
+
+  /* opção "é de outra pessoa" no lançamento */
+  function peopleChips(box, onPick, current) {
+    box.textContent = "";
+    knownPeople().slice(0, 8).forEach(n => {
+      const b = document.createElement("button"); b.type = "button"; b.textContent = n;
+      b.setAttribute("aria-pressed", String(pkey(n) === pkey(current)));
+      b.addEventListener("click", () => onPick(n));
+      box.append(b);
+    });
+  }
+  function paintTer() {
+    const despesa = $("tDespesa").checked, on = state.ter;
+    $("terToggle").setAttribute("aria-pressed", String(on));
+    $("terTitle").textContent = despesa ? "É de outra pessoa" : "É pagamento de alguém que me devia";
+    $("terSub").textContent = despesa ? "Ela vai te pagar. Entra na fatura, mas não conta como sua despesa." : "Não conta como receita. Abate do que a pessoa te deve.";
+    $("terBox").hidden = !on;
+    $("catField").hidden = on;
+    $("descField").hidden = on && !despesa;
+    if (on) {
+      const pick = n => { $("fTer").value = n; paintTerChips(); };
+      const paintTerChips = () => peopleChips($("terPeople"), pick, $("fTer").value);
+      paintTerChips();
+      if (!despesa) { $("addBtn").textContent = "Registrar pagamento recebido"; $("modalTitle").textContent = "Pagamento recebido"; }
+      else $("modalTitle").textContent = state.forma === "parcelada" ? "Parcelada de outra pessoa" : state.forma === "fixa" ? "Fixa de outra pessoa" : "Despesa de outra pessoa";
+    }
+  }
+  $("terToggle").addEventListener("click", () => {
+    state.ter = !state.ter; paintForma();
+    if (state.ter) setTimeout(() => $("fTer").focus(), 60);
+  });
+  $("fTer").addEventListener("input", () => peopleChips($("terPeople"), n => { $("fTer").value = n; paintTer(); }, $("fTer").value));
+
+  /* registrar pagamento recebido */
+  let rcLastFocus = null;
+  function rcInfo() {
+    const box = $("rcInfo"), k = pkey($("rcNome").value);
+    const pp = k ? peopleData(state.mes > thisMonth ? state.mes : thisMonth).find(p => p.k === k) : null;
+    peopleChips($("rcPeople"), n => { $("rcNome").value = n; rcInfo(); }, $("rcNome").value);
+    box.textContent = "";
+    if (!pp || !(pp.pend || pp.fut)) { box.hidden = true; return; }
+    box.hidden = false;
+    box.append(pp.nome + (pp.pend ? " te deve " + money(pp.pend) + " até agora" : " não tem nada vencido") + (pp.fut ? " · " + money(pp.fut) + " a vencer" : ""));
+    if (pp.pend) {
+      const use = document.createElement("button"); use.type = "button"; use.className = "linkbtn"; use.textContent = "Usar " + money(pp.pend);
+      use.addEventListener("click", () => { $("rcValor").value = (pp.pend / 100).toFixed(2).replace(".", ","); $("rcValor").focus(); });
+      box.append(document.createElement("br"), use);
+    }
+  }
+  function openRc(nome) {
+    rcLastFocus = document.activeElement;
+    $("rcNome").value = nome || ""; $("rcValor").value = ""; $("rcObs").value = "";
+    $("rcData").value = ymd(today);
+    $("rcMsg").textContent = ""; $("rcMsg").className = "msg";
+    rcInfo();
+    $("rcOverlay").classList.add("open"); $("rcOverlay").setAttribute("aria-hidden", "false");
+    setTimeout(() => (nome ? $("rcValor") : $("rcNome")).focus(), 80);
+  }
+  function closeRc() {
+    $("rcOverlay").classList.remove("open"); $("rcOverlay").setAttribute("aria-hidden", "true");
+    if (rcLastFocus && rcLastFocus.focus) rcLastFocus.focus();
+  }
+  function rcFail(text, el) {
+    const m = $("rcMsg"); m.className = "msg err"; m.textContent = text;
+    const md = $("rcModal"); md.classList.remove("shake"); void md.offsetWidth; md.classList.add("shake");
+    if (el) el.focus();
+  }
+  $("rcNome").addEventListener("input", rcInfo);
+  $("rcClose").addEventListener("click", closeRc);
+  $("rcOverlay").addEventListener("click", e => { if (e.target === $("rcOverlay")) closeRc(); });
+  document.addEventListener("click", e => { const b = e.target.closest && e.target.closest("[data-rcpay]"); if (b) openRc(b.dataset.rcpay); });
+  $("rcForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const pessoa = canonName($("rcNome").value), valorCentavos = parseMoney($("rcValor").value), data = $("rcData").value;
+    if (!pessoa) return rcFail("Escreva o nome de quem pagou.", $("rcNome"));
+    if (valorCentavos <= 0) return rcFail("Informe um valor maior que zero, como 150,00.", $("rcValor"));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return rcFail("Escolha a data do pagamento.", $("rcData"));
+    if (!state.db) return rcFail("Entre na sua conta para salvar.");
+    $("rcSave").disabled = true;
+    try {
+      await state.db.collection("recebimentos").add({ pessoa, valorCentavos, data, obs: $("rcObs").value.trim(), criadoEm: new Date().toISOString() });
+      toast(pessoa + " te pagou " + money(valorCentavos));
+      closeRc();
+    } catch (err) {
+      rcFail(navigator.onLine ? "Não deu para salvar agora. Tente de novo em instantes." : "Sem internet. Conecte-se para salvar.");
+    } finally { $("rcSave").disabled = false; }
+  });
+
+  /* ---------- filtros de busca de cada tela ---------- */
+  // busca sem acento e sem diferenciar maiúsculas; várias palavras precisam aparecer todas
+  function fnorm(x) { return String(x || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+  function fhit(q, text) {
+    const n = fnorm(q).trim();
+    if (!n) return true;
+    const hay = fnorm(text);
+    return n.split(/\s+/).every(w => hay.includes(w));
+  }
+  function txText(t) {
+    const card = cardById(t.cartao);
+    return [t.descricao, t.categoria, card && card.nome, t.terceiro, t.tipo === "receita" ? "receita entrada" : "despesa saida",
+      money(t.valorCentavos), t.data && ddmm(t.data), t.de ? t.parcela + "/" + t.de : ""].filter(Boolean).join(" ");
+  }
+  const fbActive = key => Object.values(state.f[key] || {}).some(Boolean);
+  const cardOpts = () => [["", "Qualquer pagamento"], ["none", "Pix, dinheiro ou débito"]].concat(state.cards.map(c => [c.id, c.nome]));
+  const catOpts = () => [["", "Todas as categorias"]].concat(CATS.despesa.concat(CATS.receita).map(c => [c, c]));
+  var FB = {
+    visao: { ph: "Buscar no mês…", sel: [{ k: "tipo", label: "Tipo", opts: () => [["", "Tudo"], ["receita", "Receitas"], ["despesa", "Despesas"], ["ter", "De outras pessoas"]] }], draw: () => renderRecent() },
+    orcamento: { ph: "Buscar categoria…", sel: [{ k: "st", label: "Situação", opts: () => [["", "Todas"], ["gasto", "Com gastos"], ["lim", "Com limite"], ["sem", "Sem limite"], ["perto", "Perto do limite"], ["over", "Estouradas"]] }], draw: () => renderBudget() },
+    parcelas: { ph: "Buscar parcelamento…", sel: [
+      { k: "st", label: "Situação", opts: () => [["", "Todos"], ["ativo", "Em andamento"], ["fim", "Encerrados"]] },
+      { k: "forma", label: "Tipo", opts: () => [["", "Parceladas e fixas"], ["parcelada", "Só parceladas"], ["fixa", "Só fixas"]] },
+      { k: "cartao", label: "Pagamento", opts: cardOpts }], draw: () => renderPlans() },
+    cartoes: { ph: "Buscar na fatura…", sel: [
+      { k: "de", label: "De quem", opts: () => [["", "Todas as compras"], ["eu", "Só minhas"], ["ter", "De outras pessoas"]] },
+      { k: "cat", label: "Categoria", opts: catOpts }], draw: () => renderFatura() },
+    pessoas: { ph: "Buscar pessoa…", sel: [{ k: "st", label: "Situação", opts: () => [["", "Todas"], ["pend", "Com pendência"], ["fut", "Com parcelas a vencer"], ["ok", "Em dia"]] }], draw: () => renderReceber() },
+    rclanc: { ph: "Buscar lançamento…", sel: [{ k: "tipo", label: "Tipo", opts: () => [["", "Compras e pagamentos"], ["d", "Só compras"], ["p", "Só pagamentos"]] }], draw: () => renderRcLanc() },
+    extrato: { sel: [
+      { k: "cat", label: "Categoria", opts: catOpts },
+      { k: "cartao", label: "Pagamento", opts: cardOpts },
+      { k: "de", label: "De quem", opts: () => [["", "Meus e de outras pessoas"], ["eu", "Só meus"], ["ter", "Só de outras pessoas"]] }], draw: () => renderActs() }
+  };
+  const SEARCH_ICO = '<svg class="ico" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>';
+  function buildFbars() {
+    document.querySelectorAll("[data-fbar]").forEach(el => {
+      const key = el.dataset.fbar, cfg = FB[key], f = state.f[key];
+      el.textContent = "";
+      const clear = document.createElement("button"); clear.type = "button"; clear.className = "fclear"; clear.textContent = "Limpar";
+      const paint = () => { clear.hidden = !fbActive(key) && !(key === "extrato" && (state.q || state.kind !== "todos")); el.classList.toggle("active", fbActive(key)); };
+      if (cfg.ph) {
+        const lab = document.createElement("label"); lab.className = "search";
+        lab.innerHTML = SEARCH_ICO + '<span class="sr">' + cfg.ph.replace("…", "") + "</span>";
+        const inp = document.createElement("input"); inp.type = "search"; inp.placeholder = cfg.ph; inp.autocomplete = "off"; inp.value = f.q;
+        let t;
+        inp.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { f.q = inp.value; cfg.draw(); paint(); }, 120); });
+        lab.append(inp); el.append(lab);
+      }
+      cfg.sel.forEach(sc => {
+        const sel = document.createElement("select"); sel.className = "fsel"; sel.dataset.k = sc.k; sel.setAttribute("aria-label", sc.label);
+        sel.addEventListener("change", () => { f[sc.k] = sel.value; sel.classList.toggle("on", !!sel.value); cfg.draw(); paint(); });
+        el.append(sel);
+      });
+      clear.addEventListener("click", () => {
+        Object.keys(f).forEach(k => { f[k] = ""; });
+        el.querySelectorAll("input").forEach(i => { i.value = ""; });
+        el.querySelectorAll("select").forEach(s2 => { s2.value = ""; s2.classList.remove("on"); });
+        if (key === "extrato") { state.q = ""; $("q").value = ""; const all = document.querySelector('[data-kind="todos"]'); if (all) all.click(); }
+        cfg.draw(); paint();
+      });
+      el.append(clear);
+      el._paint = paint;
+      paint();
+    });
+    syncFbars();
+  }
+  // as opções que dependem dos dados (cartões) se atualizam sem perder a escolha
+  function syncFbars() {
+    if (!FB) return;
+    document.querySelectorAll("[data-fbar] select").forEach(sel => {
+      const key = sel.closest("[data-fbar]").dataset.fbar, sc = FB[key].sel.find(x => x.k === sel.dataset.k);
+      // sem filtro, a caixa mostra só o nome dela ("Categoria", "Pagamento"…)
+      const opts = sc.opts().map(o => o[0] === "" ? ["", sc.label] : o), sig = JSON.stringify(opts);
+      if (sel.dataset.sig !== sig) {
+        sel.dataset.sig = sig; sel.textContent = "";
+        opts.forEach(([v, l]) => sel.add(new Option(l, v)));
+        if (!opts.some(o => o[0] === state.f[key][sc.k])) state.f[key][sc.k] = "";
+      }
+      sel.value = state.f[key][sc.k];
+      sel.classList.toggle("on", !!sel.value);
+    });
+  }
+  buildFbars();
+  // a busca e o filtro de tipo que o extrato já tinha também acendem o "Limpar"
+  $("q").addEventListener("input", () => setTimeout(() => { const el = document.querySelector('[data-fbar="extrato"]'); el && el._paint && el._paint(); }, 150));
+  document.querySelectorAll("[data-kind]").forEach(b => b.addEventListener("click", () => { const el = document.querySelector('[data-fbar="extrato"]'); el && el._paint && el._paint(); }));
 
   const clearBtn = $("clearExamples");
   clearBtn.addEventListener("click", async () => {
@@ -1029,6 +1455,11 @@
     db.collection("planos").onSnapshot(snap => {
       state.plans = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(p => typeof p.valorCentavos === "number" && typeof p.inicio === "string");
       render();
+    }, () => {});
+    db.collection("recebimentos").onSnapshot(snap => {
+      state.recs = snap.docs.map(d => Object.assign({ id: d.id }, d.data())).filter(r => typeof r.valorCentavos === "number" && typeof r.data === "string");
+      render();
+      if ($("rcOverlay").classList.contains("open")) rcInfo();
     }, () => {});
     db.doc("config/orcamento").onSnapshot(s => {
       state.limites = (s.exists && s.data().limites) || {};

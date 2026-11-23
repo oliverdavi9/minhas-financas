@@ -34,6 +34,7 @@
       <button type="button" data-go="orcamento">Orçamento</button>
       <button type="button" data-go="parcelas">Parcelas</button>
       <button type="button" data-go="cartoes">Cartões</button>
+      <button type="button" data-go="receber">A receber</button>
       <button type="button" data-go="extrato">Extrato</button>
     </nav>
     <div class="tools">
@@ -65,6 +66,7 @@
         <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg></div><div><b class="num skel" id="cCount">—</b><span>lançamentos no mês</span></div></div>
         <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div><div><b class="num skel" id="cDaily">—</b><span>gasto médio por dia</span></div></div>
         <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M3 17 9 11l4 4 8-8M15 7h6v6"/></svg></div><div><b class="num skel" id="cTop">—</b><span id="cTopLabel">maior despesa</span></div></div>
+        <button class="chip-stat glass chip-btn" type="button" data-go="receber" id="cRecChip" hidden><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M18 8v6M15 11h6"/></svg></div><div><b class="num" id="cRec">—</b><span id="cRecLabel">a receber</span></div></button>
       </div>
     </div>
 
@@ -121,6 +123,7 @@
           <h2>Últimos lançamentos</h2>
           <button class="btn btn-glass" type="button" data-go="extrato">Ver extrato completo<svg class="ico" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
         </div>
+        <div class="fbar" data-fbar="visao"></div>
         <div class="acts" id="recent"></div>
       </section>
     </div>
@@ -158,6 +161,7 @@
 
       <section class="card glass a-budget stag" id="categorias">
         <div class="card-head"><h2>Por categoria</h2><span class="label">gasto / limite · toque no limite para editar</span></div>
+        <div class="fbar" data-fbar="orcamento"></div>
         <div class="budget" id="budget"></div>
       </section>
     </div>
@@ -186,6 +190,7 @@
             <button class="btn btn-ink" type="button" data-open="parcelada"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Nova parcelada</button>
           </div>
         </div>
+        <div class="fbar" data-fbar="parcelas"></div>
         <div class="plans" id="plans"></div>
       </section>
 
@@ -228,9 +233,45 @@
 
       <section class="card glass a-fat stag" id="fatura">
         <div class="card-head"><h2 id="fatTitle">Compras da fatura</h2><span class="label" id="fatMeta"></span></div>
+        <div class="fbar" data-fbar="cartoes"></div>
         <div class="acts" id="fatItems"></div>
       </section>
     </div>
+  </section>
+
+  <!-- ===== tela: a receber ===== -->
+  <section class="view" id="view-receber" aria-label="A receber" hidden>
+    <div class="hello stag">
+      <div>
+        <h1>A <em>receber</em></h1>
+        <p id="rcSub">O que outras pessoas te devem. Esses valores não entram nas suas receitas nem nas suas despesas.</p>
+      </div>
+      <div class="chips">
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><div><b class="num skel" id="rcPend">—</b><span id="rcPendLabel">pendente</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="17" rx="3"/><path d="M3 9h18M8 2v4M16 2v4"/></svg></div><div><b class="num skel" id="rcFut">—</b><span>a vencer depois</span></div></div>
+        <div class="chip-stat glass"><div class="icon-dot"><svg class="ico" viewBox="0 0 24 24"><path d="M17 7 7 17M16 17H7V8"/></svg></div><div><b class="num skel" id="rcGot">—</b><span id="rcGotLabel">recebido no mês</span></div></div>
+      </div>
+    </div>
+    <section class="card glass stag">
+      <div class="card-head">
+        <div class="seg" role="group" aria-label="Ver" data-slider='[aria-pressed="true"]'>
+          <button type="button" data-rcview="pessoas" aria-pressed="true">Pessoas</button>
+          <button type="button" data-rcview="lanc" aria-pressed="false">Lançamentos</button>
+        </div>
+        <div class="rc-actions">
+          <button class="btn btn-glass" type="button" data-open="terceiro"><svg class="ico" viewBox="0 0 24 24"><path d="M7 17 17 7M8 7h9v9"/></svg>Lançar para alguém</button>
+          <button class="btn btn-ink" type="button" data-rcpay=""><svg class="ico" viewBox="0 0 24 24"><path d="M17 7 7 17M16 17H7V8"/></svg>Registrar pagamento</button>
+        </div>
+      </div>
+      <div class="fbar" data-fbar="pessoas"></div>
+      <div class="people" id="people"></div>
+      <div class="rc-lanc" id="rcLanc" hidden>
+        <div class="fbar" data-fbar="rclanc"></div>
+        <div class="cats" id="rcFilter" role="group" aria-label="Filtrar por pessoa"></div>
+        <div class="acts" id="rcActs"></div>
+        <div class="act-foot"><span id="rcCount"></span><span id="rcSum"></span></div>
+      </div>
+    </section>
   </section>
 
   <!-- ===== tela: extrato ===== -->
@@ -259,6 +300,7 @@
           </div>
         </div>
       </div>
+      <div class="fbar" data-fbar="extrato"></div>
       <div>
         <div class="act-head"><span></span><span>Descrição</span><span>Data</span><span>Tipo</span><span class="rt">Valor</span><span></span></div>
         <div class="acts" id="acts"></div>
@@ -273,6 +315,7 @@
   <button type="button" data-go="orcamento"><svg class="ico" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4.5"/></svg>Orçamento</button>
   <button type="button" data-go="parcelas"><svg class="ico" viewBox="0 0 24 24"><path d="M17 2l4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>Parcelas</button>
   <button type="button" data-go="cartoes"><svg class="ico" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="3"/><path d="M2 10h20M6 15h4"/></svg>Cartões</button>
+  <button type="button" data-go="receber"><svg class="ico" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M18 8v6M15 11h6"/></svg>Receber</button>
   <button type="button" data-go="extrato"><svg class="ico" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Extrato</button>
   <button type="button" class="plus" data-open="despesa" aria-label="Novo lançamento"><svg class="ico" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button>
 </nav>
@@ -314,8 +357,15 @@
           <p class="hint">Repete todo mês no mesmo dia, sem data para acabar. Você encerra quando quiser na tela Parcelas.</p>
         </div>
         <div class="field" id="payField"><span class="label">Pagar com</span><div class="cats" id="payOpts" role="group" aria-label="Pagar com"></div></div>
-        <div class="field"><label for="fDesc">Descrição</label><input id="fDesc" maxlength="80" placeholder="Ex.: Mercado da semana" autocomplete="off"></div>
-        <div class="field"><span class="label">Categoria</span><div class="cats" id="cats" role="group" aria-label="Categoria"></div></div>
+        <div class="field ter-field" id="terField">
+          <button type="button" class="ter-toggle" id="terToggle" aria-pressed="false"><span class="sw" aria-hidden="true"></span><span><b id="terTitle">É de outra pessoa</b><small id="terSub">Ela vai te pagar. Não conta como sua despesa.</small></span></button>
+          <div class="ter-box" id="terBox" hidden>
+            <input id="fTer" maxlength="40" placeholder="Nome da pessoa" autocomplete="off" aria-label="Nome da pessoa">
+            <div class="cats" id="terPeople" role="group" aria-label="Pessoas já usadas"></div>
+          </div>
+        </div>
+        <div class="field" id="descField"><label for="fDesc">Descrição</label><input id="fDesc" maxlength="80" placeholder="Ex.: Mercado da semana" autocomplete="off"></div>
+        <div class="field" id="catField"><span class="label">Categoria</span><div class="cats" id="cats" role="group" aria-label="Categoria"></div></div>
         <div class="field"><label for="fData" id="fDataLabel">Data</label><input id="fData" type="date"></div>
         <p class="preview" id="planPreview" hidden></p>
         <button class="btn btn-accent" id="addBtn" type="submit" style="padding:13px">Adicionar lançamento</button>
@@ -348,6 +398,25 @@
         <button class="btn btn-accent" id="cardSave" type="submit" style="padding:13px">Salvar cartão</button>
         <div id="cardDelWrap" style="display:flex;justify-content:center"></div>
         <p class="msg" id="cardMsg" role="status"></p>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="overlay" id="rcOverlay" aria-hidden="true">
+  <div class="modal glass" id="rcModal" role="dialog" aria-modal="true" aria-labelledby="rcTitle">
+    <div class="modal-head"><h2 id="rcTitle">Registrar pagamento</h2><button class="round" type="button" id="rcClose" aria-label="Fechar"><svg class="ico" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+    <form id="rcForm" novalidate>
+      <div style="display:grid;gap:14px">
+        <div class="field"><label for="rcNome">Quem pagou</label><input id="rcNome" maxlength="40" placeholder="Nome da pessoa" autocomplete="off"><div class="cats" id="rcPeople" role="group" aria-label="Pessoas"></div></div>
+        <div class="amount-field"><span>R$</span><input id="rcValor" inputmode="decimal" placeholder="0,00" aria-label="Valor recebido" autocomplete="off"></div>
+        <p class="preview" id="rcInfo" hidden></p>
+        <div class="two">
+          <div class="field"><label for="rcData">Data</label><input id="rcData" type="date"></div>
+          <div class="field"><label for="rcObs">Observação</label><input id="rcObs" maxlength="60" placeholder="Opcional" autocomplete="off"></div>
+        </div>
+        <button class="btn btn-accent" id="rcSave" type="submit" style="padding:13px">Salvar pagamento</button>
+        <p class="msg" id="rcMsg" role="status"></p>
       </div>
     </form>
   </div>
